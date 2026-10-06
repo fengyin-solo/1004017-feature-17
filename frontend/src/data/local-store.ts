@@ -48,6 +48,23 @@ export function saveRows(key: string, rows: EntryRow[]): void {
   }
 }
 
+// 受控更新在落库前要判断「是否已有更新包在审核」，先放弃内存缓存重读一次，
+// 这样同一浏览器多个标签页（模拟多人）同时提交时，后提交的一方能看到最新状态。
+export function reloadCache(): Record<string, EntryRow[]> {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as Record<string, EntryRow[]>
+        cache = { ...clone(SEED_ROWS), ...parsed }
+      } catch {
+        // 存储损坏时沿用旧缓存，由读存储的兜底逻辑下次修复。
+      }
+    }
+  }
+  return allRows()
+}
+
 export function resetRows(key: string): EntryRow[] {
   const rows = clone(SEED_ROWS[key] ?? [])
   saveRows(key, rows)
