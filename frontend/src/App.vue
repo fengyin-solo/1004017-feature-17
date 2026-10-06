@@ -11,7 +11,16 @@
     <main class="app-main">
       <header class="app-head">
         <span class="head-desc">面向城市地下管线登记建档、巡检任务、缺陷记录、外出维修、修复验收与设施档案全流程的地下管网巡检养护管理平台。</span>
-        <span class="head-user">当前值班：{{ store.operator }} · {{ store.shiftLabel }}</span>
+        <span class="head-user">
+          当前值班：{{ store.operator }} · {{ store.shiftLabel }} · 角色
+          <select v-model="store.role" class="head-select">
+            <option v-for="role in ARCHIVE_ROLES" :key="role" :value="role">{{ role }}</option>
+          </select>
+          区域
+          <select v-model="store.region" class="head-select">
+            <option v-for="region in ARCHIVE_REGIONS" :key="region" :value="region">{{ region }}</option>
+          </select>
+        </span>
       </header>
       <RouterView />
     </main>
@@ -19,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { useSessionStore } from '@/stores/session'
+import { ARCHIVE_REGIONS, ARCHIVE_ROLES, useSessionStore } from '@/stores/session'
 
 const store = useSessionStore()
 

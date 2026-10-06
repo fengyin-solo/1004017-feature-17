@@ -61,6 +61,66 @@ export function resetModule(key: string): PageResult {
   return listEntries(key)
 }
 
+export type DefectInput = {
+  所属管线: string
+  缺陷类型: string
+  发现位置: string
+  严重等级: string
+  关联档案: string
+  缺陷描述: string
+}
+
+function today(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// 登记缺陷记录：关联设施档案时先校验档案状态，作废档案不能被缺陷记录引用。
+export function registerDefect(input: DefectInput): ActionResult {
+  const required: [string, string][] = [
+    ['所属管线', input.所属管线],
+    ['缺陷类型', input.缺陷类型],
+    ['发现位置', input.发现位置],
+  ]
+  const missing = required.filter(([, value]) => !value.trim()).map(([field]) => field)
+  if (missing.length > 0) {
+    return { ok: false, message: `缺陷记录缺少必填项：${missing.join('、')}` }
+  }
+  const archiveCode = input.关联档案.trim()
+  if (archiveCode) {
+    const archive = listRows('facility_archive').find(
+      (row) => String(row['档案编号']) === archiveCode,
+    )
+    if (!archive) {
+      return { ok: false, message: `关联的设施档案 ${archiveCode} 不存在` }
+    }
+    if (String(archive.status) === '已作废') {
+      return { ok: false, message: `设施档案 ${archiveCode} 已作废，作废档案不能被缺陷记录引用` }
+    }
+  }
+  const rows = listRows('defect')
+  const id = rows.reduce((max, row) => Math.max(max, Number(row.id)), 0) + 1
+  const code = `DEFE-${String(id).padStart(4, '0')}`
+  const row: EntryRow = {
+    id,
+    status: '待确认',
+    pending: true,
+    abnormal: false,
+    缺陷编号: code,
+    所属管线: input.所属管线.trim(),
+    缺陷类型: input.缺陷类型.trim(),
+    发现位置: input.发现位置.trim(),
+    严重等级: input.严重等级.trim() || '一般',
+    发现日期: today(),
+    缺陷描述: input.缺陷描述.trim(),
+    记录状态: '待确认',
+    ...(archiveCode ? { 关联档案: archiveCode } : {}),
+  }
+  saveRows('defect', [...rows, row])
+  return { ok: true, message: `缺陷记录 ${code} 已登记，当前状态「待确认」` }
+}
+
 export function exportEntries(key: string): { filename: string; content: string } {
   const meta = moduleMeta(key)
   const header = ['编号', ...meta.fields, '当前状态']

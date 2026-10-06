@@ -6,10 +6,20 @@
         <p class="page-desc">维护缺陷记录，围绕缺陷编号、所属管线、缺陷类型、发现位置做登记、筛选与状态流转。</p>
       </div>
       <div class="page-actions">
-        <button class="btn primary" type="button" @click="openCreate">登记缺陷记录</button>
+        <button class="btn primary" type="button" @click="toggleCreate">登记缺陷记录</button>
         <button class="btn" type="button" @click="exportRows">导出缺陷记录清单</button>
       </div>
     </header>
+
+    <form v-if="createOpen" class="inline-form create-form" @submit.prevent="submitCreate">
+      <input v-model="createForm.所属管线" placeholder="所属管线 *" />
+      <input v-model="createForm.缺陷类型" placeholder="缺陷类型 *" />
+      <input v-model="createForm.发现位置" placeholder="发现位置 *" />
+      <input v-model="createForm.严重等级" placeholder="严重等级（默认一般）" />
+      <input v-model="createForm.关联档案" placeholder="关联设施档案编号（选填，作废档案不可引用）" />
+      <input v-model="createForm.缺陷描述" placeholder="缺陷描述" />
+      <button class="btn primary" type="submit">提交登记</button>
+    </form>
 
     <div class="stat-row">
       <article v-for="item in stats" :key="item.label" class="stat-card">
@@ -65,6 +75,7 @@
 
     <footer class="page-foot">
       <span>共 {{ total }} 条缺陷记录记录</span>
+      <span v-if="noticeMessage" class="notice-text">{{ noticeMessage }}</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
   </section>
@@ -77,12 +88,13 @@ import {
   downloadEntries,
   listEntries,
   moduleMeta,
+  registerDefect,
   runAction as applyAction,
 } from '@/api/local-service'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('defect')
-const columns = ["缺陷编号", "所属管线", "缺陷类型", "发现位置", "严重等级", "发现日期", "缺陷描述", "记录状态"]
+const columns = ["缺陷编号", "所属管线", "缺陷类型", "发现位置", "严重等级", "发现日期", "缺陷描述", "记录状态", "关联档案"]
 const actions = ["确认缺陷", "标记修复", "忽略缺陷"]
 const statuses = ["待确认", "已确认", "已修复", "已忽略"]
 const stats = [{"label": "待确认缺陷", "value": 0}, {"label": "已修复缺陷", "value": 0}, {"label": "严重缺陷", "value": 0}]
@@ -90,7 +102,10 @@ const stats = [{"label": "待确认缺陷", "value": 0}, {"label": "已修复缺
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
+const noticeMessage = ref('')
 const filters = ref<Record<string, string>>({})
+const createOpen = ref(false)
+const createForm = ref({ 所属管线: '', 缺陷类型: '', 发现位置: '', 严重等级: '', 关联档案: '', 缺陷描述: '' })
 const filterFields = columns.slice(0, 3)
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
@@ -108,8 +123,23 @@ function exportRows() {
   downloadEntries(meta.key)
 }
 
-function openCreate() {
-  errorMessage.value = '缺陷记录登记入口尚未接入审批流'
+function toggleCreate() {
+  createOpen.value = !createOpen.value
+  errorMessage.value = ''
+  noticeMessage.value = ''
+}
+
+function submitCreate() {
+  const result = registerDefect(createForm.value)
+  if (!result.ok) {
+    errorMessage.value = result.message
+    noticeMessage.value = ''
+    return
+  }
+  createForm.value = { 所属管线: '', 缺陷类型: '', 发现位置: '', 严重等级: '', 关联档案: '', 缺陷描述: '' }
+  createOpen.value = false
+  reload()
+  noticeMessage.value = result.message
 }
 
 function runAction(action: string, row: EntryRow) {
@@ -124,6 +154,7 @@ function runAction(action: string, row: EntryRow) {
 
 function reload() {
   errorMessage.value = ''
+  noticeMessage.value = ''
   try {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
